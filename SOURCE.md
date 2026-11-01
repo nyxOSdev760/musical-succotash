@@ -5533,23 +5533,31 @@ extension EditorViewModel {
         switch sel {
         case .clip(let id):
             if let i = p.clips.firstIndex(where: { $0.id == id }) {
-                let c = p.clips[i]
-                body(&p.clips[i].transform, &p.clips[i].keyframes, c.timelineStart, c.duration)
+                var c = p.clips[i]
+                let start = c.timelineStart, duration = c.duration
+                body(&c.transform, &c.keyframes, start, duration)
+                p.clips[i] = c
             }
         case .overlayClip(let id):
             if let i = p.overlayClips.firstIndex(where: { $0.id == id }) {
-                let c = p.overlayClips[i]
-                body(&p.overlayClips[i].transform, &p.overlayClips[i].keyframes, c.timelineStart, c.duration)
+                var c = p.overlayClips[i]
+                let start = c.timelineStart, duration = c.duration
+                body(&c.transform, &c.keyframes, start, duration)
+                p.overlayClips[i] = c
             }
         case .overlay(let id):
             if let i = p.overlays.firstIndex(where: { $0.id == id }) {
-                let o = p.overlays[i]
-                body(&p.overlays[i].transform, &p.overlays[i].keyframes, o.start, o.duration)
+                var o = p.overlays[i]
+                let start = o.start, duration = o.duration
+                body(&o.transform, &o.keyframes, start, duration)
+                p.overlays[i] = o
             }
         case .text(let id):
             if let i = p.texts.firstIndex(where: { $0.id == id }) {
-                let t = p.texts[i]
-                body(&p.texts[i].transform, &p.texts[i].keyframes, t.start, t.duration)
+                var t = p.texts[i]
+                let start = t.start, duration = t.duration
+                body(&t.transform, &t.keyframes, start, duration)
+                p.texts[i] = t
             }
         default:
             break
@@ -5935,14 +5943,21 @@ extension EditorViewModel {
             p.audioClips[i] = a
         case .caption(let id):
             guard let i = p.captions.segments.firstIndex(where: { $0.id == id }) else { return }
+            let old = p.captions.segments[i]
+            var seg = old
             if edge == .left {
-                p.captions.segments[i].start = min(max(0, p.captions.segments[i].start + delta), p.captions.segments[i].end - minDur)
+                seg.start = min(max(0, old.start + delta), old.end - minDur)
             } else {
-                p.captions.segments[i].end = max(p.captions.segments[i].start + minDur, p.captions.segments[i].end + delta)
+                seg.end = max(old.start + minDur, old.end + delta)
             }
-            let s = p.captions.segments[i]
-            var seg = s
-            seg.setText(s.text)
+            // Keep each word's relative timing so karaoke highlighting stays in sync.
+            let oldSpan = max(old.end - old.start, 0.001)
+            let newSpan = seg.end - seg.start
+            seg.words = old.words.map { w in
+                CaptionWord(text: w.text,
+                            start: seg.start + (w.start - old.start) / oldSpan * newSpan,
+                            end: seg.start + (w.end - old.start) / oldSpan * newSpan)
+            }
             p.captions.segments[i] = seg
         }
     }
@@ -6148,7 +6163,24 @@ extension EditorViewModel {
     func presentPicker(_ target: PickerTarget) {
         pickerTarget = target
         pickerItems = []
-        showMediaPicker = true
+        afterDismissingPanel { [weak self] in self?.showMediaPicker = true }
+    }
+
+    func presentMusicImporter() {
+        afterDismissingPanel { [weak self] in self?.showMusicImporter = true }
+    }
+
+    /// Runs `action` once any open panel sheet has finished dismissing, so two sheets never collide.
+    func afterDismissingPanel(_ action: @escaping @MainActor () -> Void) {
+        guard activePanel != nil else {
+            action()
+            return
+        }
+        activePanel = nil
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            action()
+        }
     }
 
     func handlePicked(_ items: [PhotosPickerItem]) {
@@ -8635,8 +8667,7 @@ struct AudioPanel: View {
                 } else {
                     bigButton("Music from Files", subtitle: "MP3, M4A, WAV, AIFF — beats are detected automatically",
                               icon: "music.note.list") {
-                        vm.activePanel = nil
-                        vm.showMusicImporter = true
+                        vm.presentMusicImporter()
                     }
                     bigButton("Record Voiceover", subtitle: "Records from the playhead while your video plays",
                               icon: "mic.fill") {
@@ -8758,7 +8789,6 @@ struct OverlayPanel: View {
                 default:
                     VStack(spacing: 12) {
                         Button {
-                            vm.activePanel = nil
                             vm.presentPicker(.overlay)
                         } label: {
                             Label("Choose photo or video", systemImage: "pip.enter")

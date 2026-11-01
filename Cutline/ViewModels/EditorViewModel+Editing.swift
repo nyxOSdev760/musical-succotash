@@ -80,23 +80,31 @@ extension EditorViewModel {
         switch sel {
         case .clip(let id):
             if let i = p.clips.firstIndex(where: { $0.id == id }) {
-                let c = p.clips[i]
-                body(&p.clips[i].transform, &p.clips[i].keyframes, c.timelineStart, c.duration)
+                var c = p.clips[i]
+                let start = c.timelineStart, duration = c.duration
+                body(&c.transform, &c.keyframes, start, duration)
+                p.clips[i] = c
             }
         case .overlayClip(let id):
             if let i = p.overlayClips.firstIndex(where: { $0.id == id }) {
-                let c = p.overlayClips[i]
-                body(&p.overlayClips[i].transform, &p.overlayClips[i].keyframes, c.timelineStart, c.duration)
+                var c = p.overlayClips[i]
+                let start = c.timelineStart, duration = c.duration
+                body(&c.transform, &c.keyframes, start, duration)
+                p.overlayClips[i] = c
             }
         case .overlay(let id):
             if let i = p.overlays.firstIndex(where: { $0.id == id }) {
-                let o = p.overlays[i]
-                body(&p.overlays[i].transform, &p.overlays[i].keyframes, o.start, o.duration)
+                var o = p.overlays[i]
+                let start = o.start, duration = o.duration
+                body(&o.transform, &o.keyframes, start, duration)
+                p.overlays[i] = o
             }
         case .text(let id):
             if let i = p.texts.firstIndex(where: { $0.id == id }) {
-                let t = p.texts[i]
-                body(&p.texts[i].transform, &p.texts[i].keyframes, t.start, t.duration)
+                var t = p.texts[i]
+                let start = t.start, duration = t.duration
+                body(&t.transform, &t.keyframes, start, duration)
+                p.texts[i] = t
             }
         default:
             break
