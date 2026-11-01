@@ -287,12 +287,9 @@ final class AssetCache: @unchecked Sendable {
     private var cache: [URL: Info] = [:]
 
     func info(for url: URL) async throws -> Info {
-        lock.lock()
-        if let hit = cache[url] {
-            lock.unlock()
+        if let hit = lock.withLock({ cache[url] }) {
             return hit
         }
-        lock.unlock()
 
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
         let duration = try await asset.load(.duration)
@@ -313,9 +310,7 @@ final class AssetCache: @unchecked Sendable {
         }
         let info = Info(asset: asset, video: video, audio: audio, duration: duration, videoRange: videoRange,
                         audioRange: audioRange, orientation: orientation, frameDuration: frameDuration)
-        lock.lock()
-        cache[url] = info
-        lock.unlock()
+        lock.withLock { cache[url] = info }
         return info
     }
 

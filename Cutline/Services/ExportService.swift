@@ -87,9 +87,7 @@ final class ExportService: @unchecked Sendable {
     }
 
     private var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelled
+        lock.withLock { cancelled }
     }
 
     // MARK: Video
@@ -175,11 +173,11 @@ final class ExportService: @unchecked Sendable {
             }
         }
 
-        lock.lock()
-        self.reader = reader
-        self.writer = writer
-        let wasCancelled = cancelled
-        lock.unlock()
+        let wasCancelled = lock.withLock { () -> Bool in
+            self.reader = reader
+            self.writer = writer
+            return cancelled
+        }
         if wasCancelled { throw AppError.cancelled }
 
         guard reader.startReading() else { throw AppError.exportFailed(reader.error?.localizedDescription ?? "Couldn't read the timeline.") }
@@ -273,10 +271,7 @@ final class ExportService: @unchecked Sendable {
         session.outputFileType = .m4a
         session.audioMix = built.audioMix
         session.audioTimePitchAlgorithm = .spectral
-        lock.lock()
-        let wasCancelled = cancelled
-        lock.unlock()
-        if wasCancelled { throw AppError.cancelled }
+        if isCancelled { throw AppError.cancelled }
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             session.exportAsynchronously { continuation.resume() }
         }

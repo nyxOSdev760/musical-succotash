@@ -10,7 +10,24 @@ extension EditorViewModel {
     func presentPicker(_ target: PickerTarget) {
         pickerTarget = target
         pickerItems = []
-        showMediaPicker = true
+        afterDismissingPanel { [weak self] in self?.showMediaPicker = true }
+    }
+
+    func presentMusicImporter() {
+        afterDismissingPanel { [weak self] in self?.showMusicImporter = true }
+    }
+
+    /// Runs `action` once any open panel sheet has finished dismissing, so two sheets never collide.
+    func afterDismissingPanel(_ action: @escaping @MainActor () -> Void) {
+        guard activePanel != nil else {
+            action()
+            return
+        }
+        activePanel = nil
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            action()
+        }
     }
 
     func handlePicked(_ items: [PhotosPickerItem]) {

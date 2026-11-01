@@ -47,10 +47,7 @@ final class AutosaveService {
         guard let data = try? ProjectFileIO.encode(project) else { return }
         let paths = self.paths
         let app = UIApplication.shared
-        var taskID: UIBackgroundTaskIdentifier = .invalid
-        taskID = app.beginBackgroundTask(withName: "Cutline autosave") {
-            app.endBackgroundTask(taskID)
-        }
+        let taskID = app.beginBackgroundTask(withName: "Cutline autosave", expirationHandler: nil)
         queue.sync {
             try? ProjectFileIO.write(data, to: paths)
         }

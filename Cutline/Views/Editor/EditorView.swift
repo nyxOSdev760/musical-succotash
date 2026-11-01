@@ -45,7 +45,7 @@ struct EditorView: View {
         }
         .photosPicker(isPresented: $vm.showMediaPicker, selection: $vm.pickerItems, maxSelectionCount: 50,
                       selectionBehavior: .ordered,
-                      matching: vm.pickerTarget == .overlay ? .any(of: [.images, .videos]) : .any(of: [.videos, .images]))
+                      matching: .any(of: [.videos, .images]))
         .onChange(of: vm.pickerItems) { _, items in
             if !items.isEmpty { vm.handlePicked(items) }
         }

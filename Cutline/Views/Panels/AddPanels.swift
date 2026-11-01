@@ -17,8 +17,7 @@ struct AudioPanel: View {
                 } else {
                     bigButton("Music from Files", subtitle: "MP3, M4A, WAV, AIFF — beats are detected automatically",
                               icon: "music.note.list") {
-                        vm.activePanel = nil
-                        vm.showMusicImporter = true
+                        vm.presentMusicImporter()
                     }
                     bigButton("Record Voiceover", subtitle: "Records from the playhead while your video plays",
                               icon: "mic.fill") {
@@ -140,7 +139,6 @@ struct OverlayPanel: View {
                 default:
                     VStack(spacing: 12) {
                         Button {
-                            vm.activePanel = nil
                             vm.presentPicker(.overlay)
                         } label: {
                             Label("Choose photo or video", systemImage: "pip.enter")

@@ -94,13 +94,17 @@ final class WaveformStore: @unchecked Sendable {
                 try? data.write(to: cacheFile, options: .atomic)
             }
             guard let self else { return }
-            self.lock.lock()
-            self.envelopes[url] = result
-            self.inflight.remove(url)
-            self.lock.unlock()
-            DispatchQueue.main.async { self.version += 1 }
+            self.store(result, for: url)
         }
         return nil
+    }
+
+    private func store(_ envelope: [Float], for url: URL) {
+        lock.lock()
+        envelopes[url] = envelope
+        inflight.remove(url)
+        lock.unlock()
+        DispatchQueue.main.async { self.version += 1 }
     }
 }
 

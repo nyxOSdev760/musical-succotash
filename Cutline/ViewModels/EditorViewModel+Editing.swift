@@ -482,14 +482,21 @@ extension EditorViewModel {
             p.audioClips[i] = a
         case .caption(let id):
             guard let i = p.captions.segments.firstIndex(where: { $0.id == id }) else { return }
+            let old = p.captions.segments[i]
+            var seg = old
             if edge == .left {
-                p.captions.segments[i].start = min(max(0, p.captions.segments[i].start + delta), p.captions.segments[i].end - minDur)
+                seg.start = min(max(0, old.start + delta), old.end - minDur)
             } else {
-                p.captions.segments[i].end = max(p.captions.segments[i].start + minDur, p.captions.segments[i].end + delta)
+                seg.end = max(old.start + minDur, old.end + delta)
             }
-            let s = p.captions.segments[i]
-            var seg = s
-            seg.setText(s.text)
+            // Keep each word's relative timing so karaoke highlighting stays in sync.
+            let oldSpan = max(old.end - old.start, 0.001)
+            let newSpan = seg.end - seg.start
+            seg.words = old.words.map { w in
+                CaptionWord(text: w.text,
+                            start: seg.start + (w.start - old.start) / oldSpan * newSpan,
+                            end: seg.start + (w.end - old.start) / oldSpan * newSpan)
+            }
             p.captions.segments[i] = seg
         }
     }
