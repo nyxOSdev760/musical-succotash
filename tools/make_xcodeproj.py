@@ -79,7 +79,7 @@ TARGET_SETTINGS = """				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				MTLLINKER_FLAGS = "-cikernel";
+				MTLLINKER_FLAGS = "-fcikernel";
 				MTL_COMPILER_FLAGS = "-fcikernel";
 				PRODUCT_BUNDLE_IDENTIFIER = app.cutline.editor;
 				PRODUCT_NAME = "$(TARGET_NAME)";

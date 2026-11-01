@@ -98,7 +98,7 @@ enum MediaImportService {
     /// Creates a 720p editing proxy for large videos. Returns the proxy file name, or nil if not needed.
     static func makeProxyIfNeeded(for media: MediaItem, paths: ProjectPaths) async -> String? {
         guard media.kind == .video, media.width * media.height > proxyThreshold else { return nil }
-        let name = "proxy_\(media.id.uuidString).mp4"
+        let name = MediaResolver.proxyName(media)
         let dest = paths.cache(name)
         if FileManager.default.fileExists(atPath: dest.path) { return name }
         let asset = AVURLAsset(url: paths.media(media.fileName))
@@ -200,6 +200,7 @@ struct MediaResolver {
         self.media = dict
     }
 
+    static func proxyName(_ m: MediaItem) -> String { "proxy_\(m.id.uuidString).mp4" }
     static func reversedVideoName(_ m: MediaItem) -> String { "rev_\(m.id.uuidString).mov" }
     static func reversedProxyName(_ m: MediaItem) -> String { "revproxy_\(m.id.uuidString).mov" }
     static func reversedAudioName(_ m: MediaItem) -> String { "revaudio_\(m.id.uuidString).m4a" }
@@ -227,8 +228,8 @@ struct MediaResolver {
             let r = paths.cache(Self.reversedVideoName(m))
             if exists(r) { return r }
         }
-        if preferProxy, let p = m.proxyFileName {
-            let pu = paths.cache(p)
+        if preferProxy {
+            let pu = paths.cache(Self.proxyName(m))
             if exists(pu) { return pu }
         }
         return originalURL(m)
@@ -244,10 +245,8 @@ struct MediaResolver {
             let r = paths.cache(Self.reversedVideoName(m))
             if exists(r) { return r }
         }
-        if let p = m.proxyFileName {
-            let pu = paths.cache(p)
-            if exists(pu) { return pu }
-        }
+        let pu = paths.cache(Self.proxyName(m))
+        if exists(pu) { return pu }
         return originalURL(m)
     }
 

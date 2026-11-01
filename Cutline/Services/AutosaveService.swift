@@ -34,7 +34,7 @@ final class AutosaveService {
         let paths = self.paths
         queue.async { [weak self] in
             try? ProjectFileIO.write(data, to: paths)
-            DispatchQueue.main.async { self?.onSaved?() }
+            Task { @MainActor in self?.onSaved?() }
         }
     }
 
