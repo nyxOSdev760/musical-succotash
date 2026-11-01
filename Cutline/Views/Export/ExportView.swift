@@ -40,8 +40,9 @@ final class ExportViewModel {
         UIApplication.shared.isIdleTimerDisabled = true
         task = Task { [weak self] in
             do {
+                let sink = ProgressSink { value in self?.progress = value }
                 let url = try await service.exportVideo(project: project, paths: paths, settings: settings) { value in
-                    Task { @MainActor [weak self] in self?.progress = value }
+                    Task { @MainActor in sink.send(value) }
                 }
                 self?.phase = .done(url)
                 Haptics.success()
@@ -126,6 +127,14 @@ final class ExportViewModel {
             self?.extraBusy = nil
         }
     }
+}
+
+/// Main-actor progress forwarder that can be captured by the exporter's background callback.
+@MainActor
+final class ProgressSink {
+    private let handler: @MainActor (Double) -> Void
+    init(_ handler: @escaping @MainActor (Double) -> Void) { self.handler = handler }
+    func send(_ value: Double) { handler(value) }
 }
 
 struct ExportView: View {

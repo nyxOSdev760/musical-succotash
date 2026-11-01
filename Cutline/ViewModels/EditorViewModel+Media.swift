@@ -104,10 +104,11 @@ extension EditorViewModel {
     func makeProxies(for items: [MediaItem]) {
         let paths = self.paths
         for m in items where m.kind == .video && m.width * m.height > MediaImportService.proxyThreshold {
-            Task.detached(priority: .utility) { [weak self] in
-                if await MediaImportService.makeProxyIfNeeded(for: m, paths: paths) != nil {
-                    await MainActor.run { self?.rebuild(force: true) }
-                }
+            Task { [weak self] in
+                let made = await Task.detached(priority: .utility) {
+                    await MediaImportService.makeProxyIfNeeded(for: m, paths: paths) != nil
+                }.value
+                if made { self?.rebuild(force: true) }
             }
         }
     }
@@ -150,10 +151,13 @@ extension EditorViewModel {
 
     func analyzeBeats(_ media: MediaItem) {
         let url = paths.media(media.fileName)
-        Task.detached(priority: .utility) { [weak self] in
-            guard let env = try? await WaveformGenerator.envelope(url: url) else { return }
-            let beats = BeatDetector.detect(envelope: env)
-            await MainActor.run {
+        Task { [weak self] in
+            let detected: [Double]? = await Task.detached(priority: .utility) {
+                guard let env = try? await WaveformGenerator.envelope(url: url) else { return nil }
+                return BeatDetector.detect(envelope: env)
+            }.value
+            guard let beats = detected else { return }
+            do {
                 guard let self else { return }
                 self.beatCache[media.id] = beats
                 self.updateSilently { p in

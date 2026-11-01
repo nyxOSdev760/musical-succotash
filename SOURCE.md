@@ -3872,7 +3872,7 @@ enum DerivedMediaService {
 
 ```swift
 import Foundation
-import AVFoundation
+@preconcurrency import AVFoundation
 import Photos
 import UIKit
 
@@ -6257,10 +6257,11 @@ extension EditorViewModel {
     func makeProxies(for items: [MediaItem]) {
         let paths = self.paths
         for m in items where m.kind == .video && m.width * m.height > MediaImportService.proxyThreshold {
-            Task.detached(priority: .utility) { [weak self] in
-                if await MediaImportService.makeProxyIfNeeded(for: m, paths: paths) != nil {
-                    await MainActor.run { self?.rebuild(force: true) }
-                }
+            Task { [weak self] in
+                let made = await Task.detached(priority: .utility) {
+                    await MediaImportService.makeProxyIfNeeded(for: m, paths: paths) != nil
+                }.value
+                if made { self?.rebuild(force: true) }
             }
         }
     }
@@ -6303,10 +6304,13 @@ extension EditorViewModel {
 
     func analyzeBeats(_ media: MediaItem) {
         let url = paths.media(media.fileName)
-        Task.detached(priority: .utility) { [weak self] in
-            guard let env = try? await WaveformGenerator.envelope(url: url) else { return }
-            let beats = BeatDetector.detect(envelope: env)
-            await MainActor.run {
+        Task { [weak self] in
+            let detected: [Double]? = await Task.detached(priority: .utility) {
+                guard let env = try? await WaveformGenerator.envelope(url: url) else { return nil }
+                return BeatDetector.detect(envelope: env)
+            }.value
+            guard let beats = detected else { return }
+            do {
                 guard let self else { return }
                 self.beatCache[media.id] = beats
                 self.updateSilently { p in
@@ -8052,8 +8056,9 @@ final class ExportViewModel {
         UIApplication.shared.isIdleTimerDisabled = true
         task = Task { [weak self] in
             do {
+                let sink = ProgressSink { value in self?.progress = value }
                 let url = try await service.exportVideo(project: project, paths: paths, settings: settings) { value in
-                    Task { @MainActor [weak self] in self?.progress = value }
+                    Task { @MainActor in sink.send(value) }
                 }
                 self?.phase = .done(url)
                 Haptics.success()
@@ -8138,6 +8143,14 @@ final class ExportViewModel {
             self?.extraBusy = nil
         }
     }
+}
+
+/// Main-actor progress forwarder that can be captured by the exporter's background callback.
+@MainActor
+final class ProgressSink {
+    private let handler: @MainActor (Double) -> Void
+    init(_ handler: @escaping @MainActor (Double) -> Void) { self.handler = handler }
+    func send(_ value: Double) { handler(value) }
 }
 
 struct ExportView: View {
