@@ -1,0 +1,75 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "dist/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i ios || true
+          xcodebuild -downloadComponent MetalToolchain 2>/dev/null || true
+
+      - name: Build (unsigned, Release, iphoneos)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Cutline.xcodeproj \
+            -scheme Cutline \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log | grep -E "error:|warning:|BUILD|\*\*" | grep -v "^ld: warning" | sort -u | head -400
+
+      - name: Show compiler errors
+        if: failure()
+        run: |
+          echo "==== ERRORS ===="
+          grep -E "error:" build.log | sort -u | head -200 || true
+          echo "==== CONTEXT ===="
+          grep -B2 -A6 -E "error:" build.log | head -600 || true
+
+      - name: Package IPA
+        run: |
+          APP=build/Build/Products/Release-iphoneos/Cutline.app
+          test -d "$APP"
+          rm -rf Payload dist
+          mkdir -p Payload dist
+          cp -R "$APP" Payload/
+          zip -qry dist/Cutline.ipa Payload
+          ls -la dist
+          unzip -l dist/Cutline.ipa | tail -5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cutline-unsigned-ipa
+          path: dist/Cutline.ipa
+
+      - name: Commit IPA back to the branch
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/Cutline.ipa
+          git commit -m "Build unsigned Cutline.ipa for ${GITHUB_SHA::7} [skip ci]" || exit 0
+          git push origin "HEAD:${GITHUB_REF_NAME}"
